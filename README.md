@@ -47,7 +47,7 @@ cd lm-evaluation-harness
 pip install -e .
 ```
 
-We also provide a number of optional dependencies for extended functionality. A detailed table is available at the end of this document.
+We also provide a number of optional dependencies for extended functionalities. A detailed table is available at the end of this document.
 
 ## Basic Usage
 ### User Guide
