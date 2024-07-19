@@ -203,6 +203,12 @@ def setup_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--watermarking_scheme",
+        type=str,
+        default="no_watermark",
+        help="Watermarking scheme to use for generation. eg. no_watermark, KGW,...",
+    )
+    parser.add_argument(
         "--verbosity",
         "-v",
         type=str.upper,
@@ -372,7 +378,14 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
         datasets.config.HF_DATASETS_TRUST_REMOTE_CODE = True
 
         args.model_args = args.model_args + ",trust_remote_code=True"
+        
+        
+        
+    # Added for watermarking
+    if args.watermarking_scheme:
+        eval_logger.info(f"Using watermarking scheme: {args.watermarking_scheme}")
 
+    
     eval_logger.info(f"Selected Tasks: {task_names}")
 
     request_caching_args = request_caching_arg_to_dict(
@@ -397,6 +410,7 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
         apply_chat_template=args.apply_chat_template,
         fewshot_as_multiturn=args.fewshot_as_multiturn,
         gen_kwargs=args.gen_kwargs,
+        watermarking_scheme=args.watermarking_scheme,
         task_manager=task_manager,
         verbosity=args.verbosity,
         predict_only=args.predict_only,
@@ -446,6 +460,7 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
 
         print(
             f"{args.model} ({args.model_args}), gen_kwargs: ({args.gen_kwargs}), limit: {args.limit}, num_fewshot: {args.num_fewshot}, "
+            f"watermarking_scheme: {args.watermarking_scheme},"
             f"batch_size: {args.batch_size}{f' ({batch_sizes})' if batch_sizes else ''}"
         )
         print(make_table(results))

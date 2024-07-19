@@ -7,11 +7,12 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import torch
 import torch.nn.functional as F
 import transformers
+from transformers import LogitsProcessorList
 from accelerate import (
     Accelerator,
     DistributedType,
     InitProcessGroupKwargs,
-    find_executable_batch_size,
+    find_executable_batch_size
 )
 from huggingface_hub import HfApi
 from packaging import version
@@ -35,7 +36,6 @@ from lm_eval.models.utils import (
     pad_and_concat,
     stop_sequences_criteria,
 )
-
 
 eval_logger = utils.eval_logger
 
@@ -113,6 +113,7 @@ class HFLM(TemplateLM):
         peft: Optional[str] = None,
         delta: Optional[str] = None,
         autogptq: Optional[Union[bool, str]] = False,
+        watermarking_scheme: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -231,6 +232,9 @@ class HFLM(TemplateLM):
                 autogptq=autogptq,
                 **kwargs,
             )
+    
+        if watermarking_scheme:
+            self.watermarking_scheme = watermarking_scheme
 
         # access self._model through self.model property outside this method
         if isinstance(self.model, torch.nn.Module):
@@ -807,6 +811,7 @@ class HFLM(TemplateLM):
         # and we don't want a warning from HF
         generation_kwargs["temperature"] = generation_kwargs.get("temperature", 0.0)
         do_sample = generation_kwargs.get("do_sample", None)
+        generation_kwargs[""]
 
         # The temperature has to be a strictly positive float -- if it is 0.0, use greedy decoding strategies
         if generation_kwargs.get("temperature") == 0.0 and do_sample is None:
@@ -1202,6 +1207,7 @@ class HFLM(TemplateLM):
             until = None
             if isinstance(gen_kwargs, dict):
                 kwargs = copy.deepcopy(gen_kwargs)  # edge case for repeats > 1
+                
                 if "until" in kwargs.keys():
                     until = kwargs.pop("until")
                     if isinstance(until, str):
@@ -1244,6 +1250,10 @@ class HFLM(TemplateLM):
 
             if "max_length" not in kwargs:
                 kwargs["max_length"] = context_enc.shape[1] + max_gen_toks
+                
+            # add watermark to gen_kwargs
+            if hasattr(self, "watermarking_scheme"):
+                kwargs["logits_processor"] = LogitsProcessorList([self.watermarking_scheme.logits_processor])
 
             # perform batched generation
             cont = self._model_generate(

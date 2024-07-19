@@ -42,7 +42,10 @@ from lm_eval.utils import (
 if TYPE_CHECKING:
     from lm_eval.api.model import LM
     from lm_eval.api.task import Task
+    
+from lm_eval.watermark.auto_watermark import AutoWatermark
 
+    
 
 @positional_deprecated
 def simple_evaluate(
@@ -67,6 +70,7 @@ def simple_evaluate(
     apply_chat_template: bool = False,
     fewshot_as_multiturn: bool = False,
     gen_kwargs: Optional[str] = None,
+    watermarking_scheme: Optional[str] = None,
     task_manager: Optional[TaskManager] = None,
     verbosity: str = "INFO",
     predict_only: bool = False,
@@ -119,6 +123,9 @@ def simple_evaluate(
     :param gen_kwargs: str
         String arguments for model generation
         Ignored for all tasks with loglikelihood output_type
+    :param watermarking_scheme: str
+        Name of watermarking scheme to apply to the prompt
+        See list of available watermarking schemes in watermarking.py
     :param predict_only: bool
         If true only model outputs will be generated and returned. Metrics will not be evaluated
     :param random_seed: int
@@ -172,6 +179,45 @@ def simple_evaluate(
         )
         if gen_kwargs == "":
             gen_kwargs = None
+            
+    if watermarking_scheme is None:
+        watermarking_scheme = "no_watermark"
+        
+    if watermarking_scheme is not None:
+        
+        def load_config_file(path: str) -> dict:
+            """Load a JSON configuration file from the specified path and return it as a dictionary."""
+            try:
+                with open(path, 'r') as f:
+                    config_dict = json.load(f)
+                return config_dict
+
+            except FileNotFoundError:
+                print(f"Error: The file '{path}' does not exist.")
+                return None
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON in '{path}': {e}")
+                # Handle other potential JSON decoding errors here
+                return None
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+                # Handle other unexpected errors here
+                return None
+
+        # watermarking scheme stuff
+        eval_logger.info(f"Watermarking scheme: {watermarking_scheme}")
+        if watermarking_scheme != "no_watermark":
+            algorithm_config_file = f"lm_eval/watermark/watermark_config/{watermarking_scheme}.json"
+            config_dict = load_config_file(algorithm_config_file)
+            watermarking_scheme_name = config_dict["algorithm_name"]
+            algorithm_config = config_dict
+            
+            watermarking_scheme = AutoWatermark.load(watermarking_scheme_name,
+                    algorithm_config=algorithm_config,
+                    gen_model=None,
+                    model_config=None)
+        else:
+            watermarking_scheme = None
 
     if isinstance(model, str):
         if model_args is None:
@@ -188,6 +234,7 @@ def simple_evaluate(
                     "batch_size": batch_size,
                     "max_batch_size": max_batch_size,
                     "device": device,
+                    "watermarking_scheme": watermarking_scheme,
                 },
             )
 
@@ -201,6 +248,7 @@ def simple_evaluate(
                     "batch_size": batch_size,
                     "max_batch_size": max_batch_size,
                     "device": device,
+                    "watermarking_scheme": watermarking_scheme,
                 },
             )
     else:
@@ -229,6 +277,7 @@ def simple_evaluate(
     # helper function to recursively apply config overrides to leaf subtasks, skipping their constituent groups.
     # (setting of num_fewshot ; bypassing metric calculation ; setting fewshot seed)
     def _adjust_config(task_dict):
+        eval_logger.info("task_dict: ", task_dict)
         adjusted_task_dict = {}
         for task_name, task_obj in task_dict.items():
             if isinstance(task_obj, dict):
@@ -239,6 +288,7 @@ def simple_evaluate(
 
             else:
                 if task_obj.get_config("output_type") == "generate_until":
+                    
                     if gen_kwargs is not None:
                         task_obj.set_config(
                             key="generation_kwargs", value=gen_kwargs, update=True
