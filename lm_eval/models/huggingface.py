@@ -1296,7 +1296,7 @@ class HFLM(TemplateLM):
                 kwargs["max_length"] = context_enc.shape[1] + max_gen_toks
                 
             # add watermark to gen_kwargs
-            if hasattr(self, "watermarking_scheme"):
+            if hasattr(self, "watermarking_scheme") and self.watermarking_scheme != "no_watermark" and self.watermarking_scheme != None:
                 kwargs["logits_processor"] = LogitsProcessorList([self.watermarking_scheme.logits_processor])
 
             # perform batched generation
