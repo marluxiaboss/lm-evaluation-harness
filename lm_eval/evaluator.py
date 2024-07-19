@@ -182,42 +182,6 @@ def simple_evaluate(
             
     if watermarking_scheme is None:
         watermarking_scheme = "no_watermark"
-        
-    if watermarking_scheme is not None:
-        
-        def load_config_file(path: str) -> dict:
-            """Load a JSON configuration file from the specified path and return it as a dictionary."""
-            try:
-                with open(path, 'r') as f:
-                    config_dict = json.load(f)
-                return config_dict
-
-            except FileNotFoundError:
-                print(f"Error: The file '{path}' does not exist.")
-                return None
-            except json.JSONDecodeError as e:
-                print(f"Error decoding JSON in '{path}': {e}")
-                # Handle other potential JSON decoding errors here
-                return None
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-                # Handle other unexpected errors here
-                return None
-
-        # watermarking scheme stuff
-        eval_logger.info(f"Watermarking scheme: {watermarking_scheme}")
-        if watermarking_scheme != "no_watermark":
-            algorithm_config_file = f"lm_eval/watermark/watermark_config/{watermarking_scheme}.json"
-            config_dict = load_config_file(algorithm_config_file)
-            watermarking_scheme_name = config_dict["algorithm_name"]
-            algorithm_config = config_dict
-            
-            watermarking_scheme = AutoWatermark.load(watermarking_scheme_name,
-                    algorithm_config=algorithm_config,
-                    gen_model=None,
-                    model_config=None)
-        else:
-            watermarking_scheme = None
 
     if isinstance(model, str):
         if model_args is None:

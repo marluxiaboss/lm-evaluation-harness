@@ -10,7 +10,6 @@ import numpy as np
 from functools import partial
 from ..base import BaseWatermark
 from .transform_model import TransformModel
-from utils.configs import ModelConfig
 from utils.utils import create_directory_for_file, load_config_file
 from transformers import LogitsProcessor, LogitsProcessorList, BertTokenizer, BertModel
 
@@ -18,7 +17,7 @@ from transformers import LogitsProcessor, LogitsProcessorList, BertTokenizer, Be
 class SIRConfig:
     """Config class for SIR algorithm, load config file and initialize parameters."""
 
-    def __init__(self, algorithm_config: dict, gen_model, model_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, model_config, *args, **kwargs) -> None:
         """
             Initialize the SIR configuration.
 
@@ -172,7 +171,7 @@ class SIRLogitsProcessor(LogitsProcessor):
 class SIR(BaseWatermark):
     """Top-level class for SIR algorithm."""
 
-    def __init__(self, algorithm_config: dict, gen_model, transformers_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, transformers_config, *args, **kwargs) -> None:
         """
             Initialize the SIR algorithm.
 

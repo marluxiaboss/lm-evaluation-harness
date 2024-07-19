@@ -3,6 +3,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple, Union
+import json
 
 import torch
 import torch.nn.functional as F
@@ -36,6 +37,9 @@ from lm_eval.models.utils import (
     pad_and_concat,
     stop_sequences_criteria,
 )
+
+from lm_eval.watermark.auto_watermark import AutoWatermark
+from lm_eval.watermark.utils import ModelConfig
 
 eval_logger = utils.eval_logger
 
@@ -232,10 +236,7 @@ class HFLM(TemplateLM):
                 autogptq=autogptq,
                 **kwargs,
             )
-    
-        if watermarking_scheme:
-            self.watermarking_scheme = watermarking_scheme
-
+            
         # access self._model through self.model property outside this method
         if isinstance(self.model, torch.nn.Module):
             self.model.eval()
@@ -266,6 +267,49 @@ class HFLM(TemplateLM):
             eval_logger.info(
                 f"Model type is '{self.config.model_type}', part of the Gemma family--a BOS token will be used as Gemma underperforms without it."
             )
+            
+
+        # watermarking scheme stuff
+        if watermarking_scheme:
+        
+            def load_config_file(path: str) -> dict:
+                """Load a JSON configuration file from the specified path and return it as a dictionary."""
+                try:
+                    with open(path, 'r') as f:
+                        config_dict = json.load(f)
+                    return config_dict
+
+                except FileNotFoundError:
+                    print(f"Error: The file '{path}' does not exist.")
+                    return None
+                except json.JSONDecodeError as e:
+                    print(f"Error decoding JSON in '{path}': {e}")
+                    # Handle other potential JSON decoding errors here
+                    return None
+                except Exception as e:
+                    print(f"An unexpected error occurred: {e}")
+                    # Handle other unexpected errors here
+                    return None
+
+            # watermarking scheme stuff
+            eval_logger.info(f"Watermarking scheme: {watermarking_scheme}")
+            if watermarking_scheme != "no_watermark":
+                algorithm_config_file = f"lm_eval/watermark/watermark_config/{watermarking_scheme}.json"
+                config_dict = load_config_file(algorithm_config_file)
+                watermarking_scheme_name = config_dict["algorithm_name"]
+                eval_logger.info(f"watermarking_scheme_name: {watermarking_scheme_name}")
+                algorithm_config = config_dict
+                
+                model_config = ModelConfig(self.tokenizer)
+                
+                watermarking_scheme = AutoWatermark.load(watermarking_scheme_name,
+                        algorithm_config=algorithm_config,
+                        gen_model=None,
+                        model_config=model_config)
+            else:
+                watermarking_scheme = None
+                
+            self.watermarking_scheme = watermarking_scheme
 
         self._max_length = max_length
         self.pretrained = pretrained
@@ -811,7 +855,6 @@ class HFLM(TemplateLM):
         # and we don't want a warning from HF
         generation_kwargs["temperature"] = generation_kwargs.get("temperature", 0.0)
         do_sample = generation_kwargs.get("do_sample", None)
-        generation_kwargs[""]
 
         # The temperature has to be a strictly positive float -- if it is 0.0, use greedy decoding strategies
         if generation_kwargs.get("temperature") == 0.0 and do_sample is None:
@@ -1148,6 +1191,7 @@ class HFLM(TemplateLM):
     def generate_until(
         self, requests: List[Instance], disable_tqdm: bool = False
     ) -> List[str]:
+        
         res = []
 
         def _collate(req: Tuple[str, dict]):

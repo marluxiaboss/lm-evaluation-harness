@@ -7,8 +7,6 @@ import torch
 from math import log
 from functools import partial
 from ..base import BaseWatermark
-from utils.configs import ModelConfig
-from utils.utils import create_directory_for_file, load_config_file
 
 from transformers import LogitsProcessor, LogitsProcessorList
 
@@ -16,7 +14,7 @@ from transformers import LogitsProcessor, LogitsProcessorList
 class EXPConfig:
     """Config class for EXP algorithm, load config file and initialize parameters."""
 
-    def __init__(self, algorithm_config: dict, gen_model, model_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, model_config, *args, **kwargs) -> None:
         """
             Initialize the EXP configuration.
 
@@ -71,7 +69,7 @@ class EXPUtils:
 class EXP(BaseWatermark):
     """Top-level class for the EXP algorithm."""
 
-    def __init__(self, algorithm_config: dict, gen_model, transformers_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, transformers_config, *args, **kwargs) -> None:
         """
             Initialize the EXP algorithm.
 

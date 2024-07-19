@@ -7,8 +7,6 @@ import torch
 from math import sqrt
 from functools import partial
 from ..base import BaseWatermark
-from utils.configs import ModelConfig
-from utils.utils import create_directory_for_file, load_config_file
 
 from transformers import LogitsProcessor, LogitsProcessorList
 
@@ -16,7 +14,7 @@ from transformers import LogitsProcessor, LogitsProcessorList
 class KGWConfig:
     """Config class for KGW algorithm, load config file and initialize parameters."""
 
-    def __init__(self, algorithm_config: dict, gen_model, model_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, model_config, *args, **kwargs) -> None:
         """
             Initialize the KGW configuration.
 
@@ -145,13 +143,14 @@ class KGWLogitsProcessor(LogitsProcessor):
         green_tokens_mask = self._calc_greenlist_mask(scores=scores, greenlist_token_ids=batched_greenlist_ids)
 
         scores = self._bias_greenlist_logits(scores=scores, greenlist_mask=green_tokens_mask, greenlist_bias=self.config.delta)
+
         return scores
     
 
 class KGW(BaseWatermark):
     """Top-level class for KGW algorithm."""
 
-    def __init__(self, algorithm_config: dict, gen_model, transformers_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, transformers_config, *args, **kwargs) -> None:
         """
             Initialize the KGW algorithm.
 
