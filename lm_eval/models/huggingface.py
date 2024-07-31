@@ -1130,8 +1130,33 @@ class HFLM(TemplateLM):
                     "labels": batched_conts,
                 }
 
+            model_outputs = self._model_call(batched_inps, **call_kwargs)
+            #print("batched_inps: ", batched_inps)
+            #print("batched_inps shape: ", batched_inps.shape)
+            #
+            #print("model_outputs: ", model_outputs)
+            #print("model_outputs shape: ", model_outputs.shape)
+            
+            # apply logits processor
+            if hasattr(self, "watermarking_scheme") and self.watermarking_scheme != "no_watermark" and self.watermarking_scheme != None:
+                logits_processor = self.watermarking_scheme.logits_processor
+                
+                # apply the logits processor for each i in second dimension
+                # ie. it should be something like:
+                # for i in range(batched_inps.shape[1]):
+                #    processed_logits = logits_processor(batched_inps, model_outputs[:, i, :].clone())
+                # then concatenate the processed_logits
+        
+                #processed_logits = logits_processor(batched_inps, model_outputs[:, -1, :].clone())
+                processed_logits = torch.cat([logits_processor(batched_inps, model_outputs[:, i, :].clone()) for i in range(batched_inps.shape[1])], dim=1)
+                processed_logits = processed_logits.reshape(model_outputs.shape)
+
+            else:
+                #processed_logits = model_outputs[:, -1, :].clone()
+                processed_logits = model_outputs
+            
             multi_logits = F.log_softmax(
-                self._model_call(batched_inps, **call_kwargs), dim=-1
+                processed_logits
             )  # [batch, padding_length (inp or cont), vocab]
 
             for (request_str, ctx_tokens, _), logits, inplen, cont_toks in zip(
