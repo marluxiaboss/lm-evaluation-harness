@@ -29,7 +29,7 @@ from transformers import LogitsProcessor, LogitsProcessorList
 class SWEET_PConfig:
     """Config class for SWEET algorithm, load config file and initialize parameters."""
 
-    def __init__(self, algorithm_config: dict, gen_model, model_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, model_config, *args, **kwargs) -> None:
         """
             Initialize the SWEET configuration.
 
@@ -49,6 +49,8 @@ class SWEET_PConfig:
         self.cut_off_method = config_dict['cut_off_method']
         self.prob_ratio = config_dict['prob_ratio']
         self.top_p = config_dict['top_p']
+        self.use_entropy_model = config_dict['use_entropy_model']
+
         
         self.generation_model = gen_model
         self.generation_tokenizer = model_config.tokenizer
@@ -332,10 +334,17 @@ class SWEET_PLogitsProcessor(LogitsProcessor):
 
         green_tokens_mask = self._calc_greenlist_mask(scores=scores, greenlist_token_ids=batched_greenlist_ids)
 
+        use_entropy_model = self.config.use_entropy_model
+
         # get entropy
         raw_probs = torch.softmax(scores, dim=-1)  
         ent = -torch.where(raw_probs > 0, raw_probs * raw_probs.log(), raw_probs.new([0.0])).sum(dim=-1)
-        entropy_mask = (ent > self.config.entropy_threshold).view(-1, 1)
+        
+        if use_entropy_model:
+            entropy_mask = (ent > self.config.entropy_threshold).view(-1, 1)
+        else:
+            entropy_mask = torch.ones_like(ent).view(-1, 1).bool()
+        
         probability_mask = self.find_probability_mask(raw_probs)
         
         green_tokens_mask = green_tokens_mask * entropy_mask * probability_mask
@@ -347,7 +356,7 @@ class SWEET_PLogitsProcessor(LogitsProcessor):
 class SWEET_P(BaseWatermark):
     """Top-level class for SWEET algorithm."""
 
-    def __init__(self, algorithm_config: dict, gen_model, transformers_config: ModelConfig, *args, **kwargs) -> None:
+    def __init__(self, algorithm_config: dict, gen_model, transformers_config, *args, **kwargs) -> None:
         """
             Initialize the SWEET algorithm.
 
@@ -399,12 +408,17 @@ class SWEET_P(BaseWatermark):
     def detect_watermark(self, text: str, return_dict: bool = True, *args, **kwargs):
         """Detect watermark in the text."""
 
+        use_entropy_model = self.config.use_entropy_model
+
         # encode text
         encoded_text = self.config.generation_tokenizer(text, return_tensors="pt", add_special_tokens=False)["input_ids"][0].to(self.config.device)
 
         # calculate entropy
-        entropy_list = self.utils.calculate_entropy(self.config.generation_model, encoded_text)
-        
+        if use_entropy_model:
+            entropy_list = self.utils.calculate_entropy(self.config.generation_model, encoded_text)
+        else:
+            entropy_list = [10000.0 for _ in range(len(encoded_text))]
+
         # compute z_score
         z_score, _, _ = self.utils.score_sequence(encoded_text, entropy_list)
 

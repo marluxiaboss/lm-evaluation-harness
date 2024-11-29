@@ -8,7 +8,7 @@ import json
 import torch
 import torch.nn.functional as F
 import transformers
-from transformers import LogitsProcessorList
+from transformers import LogitsProcessorList, SynthIDTextWatermarkingConfig
 from accelerate import (
     Accelerator,
     DistributedType,
@@ -267,7 +267,6 @@ class HFLM(TemplateLM):
             eval_logger.info(
                 f"Model type is '{self.config.model_type}', part of the Gemma family--a BOS token will be used as Gemma underperforms without it."
             )
-            
 
         # watermarking scheme stuff
         if watermarking_scheme:
@@ -280,13 +279,25 @@ class HFLM(TemplateLM):
                 watermarking_scheme_name = config_dict["algorithm_name"]
                 eval_logger.info(f"watermarking_scheme_name: {watermarking_scheme_name}")
                 algorithm_config = config_dict
+
+                if watermarking_scheme == "SynthID":
+                    watermarking_config = SynthIDTextWatermarkingConfig(
+                        keys=[654, 400, 836, 123, 340, 443, 597, 160, 57, ...],
+                        ngram_len=5,
+                    )
+
+                    for k, v in algorithm_config.items():
+                        setattr(watermarking_config, k, v)
+
+                    watermarking_scheme = watermarking_config
+                else:
                 
-                model_config = ModelConfig(self.tokenizer)
-                
-                watermarking_scheme = AutoWatermark.load(watermarking_scheme_name,
-                        algorithm_config=algorithm_config,
-                        gen_model=None,
-                        model_config=model_config)
+                    model_config = ModelConfig(self.tokenizer)
+                    
+                    watermarking_scheme = AutoWatermark.load(watermarking_scheme_name,
+                            algorithm_config=algorithm_config,
+                            gen_model=None,
+                            model_config=model_config)
             else:
                 watermarking_scheme = None
                 
@@ -1120,7 +1131,14 @@ class HFLM(TemplateLM):
             
             # apply logits processor
             if hasattr(self, "watermarking_scheme") and self.watermarking_scheme != "no_watermark" and self.watermarking_scheme != None:
-                logits_processor = self.watermarking_scheme.logits_processor
+
+                # check if the class of watermarking_scheme is SynthID
+                if isinstance(self.watermarking_scheme, SynthIDTextWatermarkingConfig):
+                    vocab_size = self.vocab_size
+                    device = self.device
+                    logits_processor = self.watermarking_scheme.construct_processor(vocab_size, device)
+                else:
+                    logits_processor = self.watermarking_scheme.logits_processor
                 
                 # apply the logits processor for each i in second dimension
                 # ie. it should be something like:
@@ -1303,7 +1321,16 @@ class HFLM(TemplateLM):
                 
             # add watermark to gen_kwargs
             if hasattr(self, "watermarking_scheme") and self.watermarking_scheme != "no_watermark" and self.watermarking_scheme != None:
-                kwargs["logits_processor"] = LogitsProcessorList([self.watermarking_scheme.logits_processor])
+
+                # check if the class of watermarking_scheme is SynthID
+                if isinstance(self.watermarking_scheme, SynthIDTextWatermarkingConfig):
+                    vocab_size = self.vocab_size
+                    device = self.device
+                    logits_processor = self.watermarking_scheme.construct_processor(vocab_size, device)
+                else:
+                    logits_processor = self.watermarking_scheme.logits_processor
+                
+                kwargs["logits_processor"] = LogitsProcessorList([logits_processor])
 
             # perform batched generation
             cont = self._model_generate(
