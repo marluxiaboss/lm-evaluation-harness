@@ -11,6 +11,7 @@ from lm_eval.evaluator import request_caching_arg_to_dict
 from lm_eval.loggers import EvaluationTracker, WandbLogger
 from lm_eval.tasks import TaskManager
 from lm_eval.utils import handle_non_serializable, make_table, simple_parse_args_string
+from lm_eval.watermark.utils import ModelConfig, load_config_file
 
 
 def _int_or_none_list_arg_type(
@@ -365,6 +366,11 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
                     f"Tasks not found: {missing}. Try `lm-eval --tasks {{list_groups,list_subtasks,list_tags,list}}` to list out all available names for task groupings; only (sub)tasks; tags; or all of the above, or pass '--verbosity DEBUG' to troubleshoot task registration issues."
                 )
 
+    # load watermark config file to save it in the results
+    if args.watermarking_scheme:
+        watermarking_scheme = args.watermarking_scheme
+        algorithm_config_file = f"lm_eval/watermark/watermark_config/{watermarking_scheme}.json"
+        config_dict = load_config_file(algorithm_config_file)
     # Respect user's value passed in via CLI, otherwise default to True and add to comma-separated model args
     if args.trust_remote_code:
         eval_logger.info(
@@ -427,6 +433,11 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
         dumped = json.dumps(
             results, indent=2, default=handle_non_serializable, ensure_ascii=False
         )
+
+        # add watermarking config to the results if it exists
+        if args.watermarking_scheme:
+            results["watermarking_scheme"] = watermarking_scheme
+            results["watermarking_config"] = config_dict
         if args.show_config:
             print(dumped)
 
